@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机数生成器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>随机数生成器</h1>
+                <p class="subtitle">生成高质量的随机浮点数</p>
+            </div>
+            <button id="themeToggle" class="theme-toggle" title="切换主题">
+                <span class="theme-icon">🌙</span>
+            </button>
+        </header>
+        
+        <main>
+            <section class="generator">
+                <h2>生成随机数</h2>
+                <form id="generatorForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="minValue">最小值</label>
+                            <input type="number" id="minValue" value="0" step="0.000001" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="maxValue">最大值</label>
+                            <input type="number" id="maxValue" value="1" step="0.000001" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="count">数量</label>
+                            <input type="number" id="count" value="5" min="1" max="100" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="distribution">分布类型</label>
+                            <select id="distribution">
+                                <option value="uniform">均匀分布</option>
+                                <option value="normal">正态分布</option>
+                                <option value="exponential">指数分布</option>
+                                <option value="poisson">泊松分布</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="precision">小数精度</label>
+                            <input type="number" id="precision" value="6" min="1" max="10">
+                        </div>
+                        <div class="form-group">
+                            <label for="seed">固定种子（可选）</label>
+                            <input type="number" id="seed" placeholder="留空则随机">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">生成随机数</button>
+                </form>
+            </section>
+            
+            <section class="results">
+                <h2>生成结果</h2>
+                <div id="statistics" class="statistics-panel" style="display: none;">
+                    <h3>统计信息</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">平均值</span>
+                            <span class="stat-value" id="statMean">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">标准差</span>
+                            <span class="stat-value" id="statStd">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">最小值</span>
+                            <span class="stat-value" id="statMin">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">最大值</span>
+                            <span class="stat-value" id="statMax">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">中位数</span>
+                            <span class="stat-value" id="statMedian">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">范围</span>
+                            <span class="stat-value" id="statRange">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="results" class="results-grid">
+                    <p class="placeholder">点击"生成随机数"按钮开始</p>
+                </div>
+            </section>
+            
+            <section class="history">
+                <div class="history-header">
+                    <h2>历史记录</h2>
+                    <div class="history-actions">
+                        <button id="exportHistory" class="btn-secondary">导出CSV</button>
+                        <button id="clearHistory" class="btn-secondary">清空历史</button>
+                    </div>
+                </div>
+                <div id="history" class="history-list">
+                    <p class="placeholder">暂无历史记录</p>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>基于Flask的随机数生成器 | 支持多种分布 | 历史记录自动保存</p>
+        </footer>
+    </div>
+    
+    <script>
+        let currentTheme = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', currentTheme);
+        updateThemeIcon();
+        
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.body.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('theme', currentTheme);
+            updateThemeIcon();
+        });
+        
+        function updateThemeIcon() {
+            const icon = document.querySelector('.theme-icon');
+            icon.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+        }
+        
+        document.getElementById('generatorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const minValue = parseFloat(document.getElementById('minValue').value);
+            const maxValue = parseFloat(document.getElementById('maxValue').value);
+            const count = parseInt(document.getElementById('count').value);
+            const distribution = document.getElementById('distribution').value;
+            const precision = parseInt(document.getElementById('precision').value);
+            const seed = document.getElementById('seed').value;
+            
+            const requestData = {
+                min: minValue,
+                max: maxValue,
+                count: count,
+                distribution: distribution,
+                precision: precision
+            };
+            
+            if (seed !== '') {
+                requestData.seed = parseInt(seed);
+            }
+            
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResults(data.numbers, precision);
+                    displayStatistics(data.statistics);
+                    displayHistory(data.history);
+                } else {
+                    alert(data.error || '生成失败');
+                }
+            } catch (error) {
+                alert('网络错误: ' + error.message);
+            }
+        });
+        
+        document.getElementById('clearHistory').addEventListener('click', async () => {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                try {
+                    const response = await fetch('/clear-history', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        document.getElementById('history').innerHTML = '<p class="placeholder">暂无历史记录</p>';
+                    }
+                } catch (error) {
+                    alert('清空失败: ' + error.message);
+                }
+            }
+        });
+        
+        document.getElementById('exportHistory').addEventListener('click', () => {
+            window.location.href = '/export-history';
+        });
+        
+        function displayResults(numbers, precision = 6) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = numbers.map(num => 
+                `<div class="number-card">${num.toFixed(precision)}</div>`
+            ).join('');
+        }
+        
+        function displayStatistics(stats) {
+            if (!stats || Object.keys(stats).length === 0) {
+                document.getElementById('statistics').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('statistics').style.display = 'block';
+            document.getElementById('statMean').textContent = stats.mean.toFixed(6);
+            document.getElementById('statStd').textContent = stats.std.toFixed(6);
+            document.getElementById('statMin').textContent = stats.min.toFixed(6);
+            document.getElementById('statMax').textContent = stats.max.toFixed(6);
+            document.getElementById('statMedian').textContent = stats.median.toFixed(6);
+            document.getElementById('statRange').textContent = stats.range.toFixed(6);
+        }
+        
+        function displayHistory(history) {
+            const historyDiv = document.getElementById('history');
+            
+            if (history.length === 0) {
+                historyDiv.innerHTML = '<p class="placeholder">暂无历史记录</p>';
+                return;
+            }
+            
+            historyDiv.innerHTML = history.map(entry => `
+                <div class="history-item">
+                    <div class="history-meta">
+                        <span class="time">${new Date(entry.timestamp).toLocaleString()}</span>
+                        <span class="range">范围: ${entry.min} - ${entry.max}</span>
+                        <span class="count">数量: ${entry.count}</span>
+                        <span class="distribution">分布: ${getDistributionName(entry.distribution)}</span>
+                        ${entry.seed ? `<span class="seed">种子: ${entry.seed}</span>` : ''}
+                    </div>
+                    <div class="history-numbers">
+                        ${entry.numbers.map(num => `<span class="number">${num.toFixed(entry.precision || 6)}</span>`).join('')}
+                    </div>
+                    ${entry.statistics ? `
+                    <div class="history-stats">
+                        <span>平均值: ${entry.statistics.mean.toFixed(6)}</span>
+                        <span>标准差: ${entry.statistics.std.toFixed(6)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        function getDistributionName(distribution) {
+            const names = {
+                'uniform': '均匀分布',
+                'normal': '正态分布',
+                'exponential': '指数分布',
+                'poisson': '泊松分布'
+            };
+            return names[distribution] || distribution;
+        }
+        
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history');
+                const history = await response.json();
+                displayHistory(history);
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+            }
+        }
+        
+        loadHistory();
+    </script>
+</body>
+</html>
